@@ -1,0 +1,661 @@
+<html><head><base href="https://crypto-signals.example.com/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CryptoSignals Pro</title>
+
+<!-- Bibliotecas externas -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+<style>
+:root {
+    /* Light theme */
+    --primary-color: #2962ff;
+    --secondary-color: #0039cb;
+    --success-color: #00c853;
+    --danger-color: #d50000;
+    --warning-color: #ffd600;
+    --background-color: #f5f5f5;
+    --card-color: #ffffff;
+    --text-color: #333333;
+}
+
+/* Add new dark theme */
+[data-theme="dark"] {
+    --primary-color: #3d5afe;
+    --secondary-color: #304ffe;
+    --background-color: #121212;
+    --card-color: #1e1e1e;
+    --text-color: #ffffff;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--background-color);
+    color: var(--text-color);
+    max-width: 100vw;
+    overflow-x: hidden;
+    padding-bottom: 70px;
+}
+
+.header {
+    background: var(--primary-color);
+    color: white;
+    padding: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.connection-status {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.2);
+}
+
+.controls {
+    padding: 1rem;
+    background: var(--card-color);
+    margin: 10px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+select {
+    width: 100%;
+    padding: 12px;
+    margin: 5px 0;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    font-size: 16px;
+}
+
+.analyze-btn {
+    width: 100%;
+    padding: 15px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    margin-top: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.chart-container {
+    background: var(--card-color);
+    margin: 10px;
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    height: 300px;
+}
+
+.signal-card {
+    background: var(--card-color);
+    margin: 10px;
+    padding: 1rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.signal-strength {
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 8px;
+}
+
+.error-message {
+    background: var(--danger-color);
+    color: white;
+    padding: 10px;
+    margin: 10px;
+    border-radius: 8px;
+    display: none;
+}
+
+/* Estados dos sinais */
+.buy { background: var(--success-color); color: white; }
+.sell { background: var(--danger-color); color: white; }
+.neutral { background: var(--warning-color); color: black; }
+
+.indicators-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.indicator {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--card-color);
+    display: flex;
+    justify-content: space-around;
+    padding: 10px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+}
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.theme-toggle {
+    background: none;
+    border: none;
+    color: white;
+    padding: 8px;
+    cursor: pointer;
+    font-size: 20px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>CryptoSignals Pro</h1>
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <button id="theme-toggle" class="theme-toggle">🌓</button>
+        <div id="connection-status" class="connection-status">Conectando...</div>
+    </div>
+</div>
+
+<div id="error-message" class="error-message"></div>
+
+<div class="controls">
+    <select id="pair-select">
+        <option value="">Carregando pares...</option>
+    </select>
+
+    <select id="timeframe-select">
+        <option value="15m">15 minutos</option>
+        <option value="1h">1 hora</option>
+        <option value="4h">4 horas</option>
+        <option value="1d">1 dia</option>
+    </select>
+
+    <button class="analyze-btn" id="analyze-btn">
+        Analisar Mercado
+    </button>
+</div>
+
+<div class="chart-container">
+    <canvas id="priceChart"></canvas>
+</div>
+
+<div class="signal-card">
+    <h2>Sinal Atual</h2>
+    <div id="signal-strength" class="signal-strength neutral">
+        AGUARDANDO ANÁLISE
+    </div>
+    
+    <div class="indicators-grid">
+        <div class="indicator">
+            <strong>RSI</strong>
+            <div id="rsi-value">-</div>
+        </div>
+        <div class="indicator">
+            <strong>Tendência</strong>
+            <div id="trend-value">-</div>
+        </div>
+        <div class="indicator">
+            <strong>EMA Cross</strong>
+            <div id="ema-value">-</div>
+        </div>
+        <div class="indicator">
+            <strong>Volume 24h</strong>
+            <div id="volume-value">-</div>
+        </div>
+    </div>
+</div>
+
+<div class="loading-overlay" id="loading-overlay">
+    <div class="loading-spinner"></div>
+</div>
+
+<script>
+// Configurações e estado global
+const config = {
+    API_KEY: 'YOUR_API_KEY', // Substituir pela sua chave API
+    API_SECRET: 'YOUR_API_SECRET', // Substituir pelo seu secret
+    WS_ENDPOINT: 'wss://stream.binance.com:9443/ws',
+    REST_ENDPOINT: 'https://api.binance.com',
+    MAX_REQUESTS_PER_MINUTE: 1200,
+    REQUEST_WINDOW_MS: 60000,
+};
+
+class ApiRateLimiter {
+    constructor(maxRequests, windowMs) {
+        this.maxRequests = maxRequests;
+        this.windowMs = windowMs;
+        this.requests = [];
+    }
+
+    async throttle() {
+        const now = Date.now();
+        this.requests = this.requests.filter(time => now - time < this.windowMs);
+        
+        if (this.requests.length >= this.maxRequests) {
+            const oldestRequest = this.requests[0];
+            const waitTime = this.windowMs - (now - oldestRequest);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+        
+        this.requests.push(now);
+    }
+}
+
+// Add new utility class for API retries
+class ApiClient {
+    constructor(maxRetries = 3, retryDelay = 1000) {
+        this.maxRetries = maxRetries;
+        this.retryDelay = retryDelay;
+    }
+
+    async request(fn, ...args) {
+        let lastError;
+        for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+            try {
+                await rateLimiter.throttle();
+                return await fn(...args);
+            } catch (error) {
+                lastError = error;
+                await new Promise(resolve => setTimeout(resolve, this.retryDelay * Math.pow(2, attempt)));
+            }
+        }
+        throw lastError;
+    }
+}
+
+class WebSocketManager {
+    constructor() {
+        this.ws = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+    }
+
+    connect(symbol) {
+        if (this.ws) {
+            this.ws.close();
+        }
+
+        this.ws = new WebSocket(`${config.WS_ENDPOINT}/${symbol.toLowerCase()}@ticker`);
+        
+        this.ws.onopen = () => {
+            this.reconnectAttempts = 0;
+            updateConnectionStatus('Conectado');
+        };
+
+        this.ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            updateRealTimePrice(data);
+        };
+
+        this.ws.onclose = () => {
+            updateConnectionStatus('Desconectado');
+            this.reconnect(symbol);
+        };
+
+        this.ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            showError('Erro na conexão WebSocket');
+        };
+    }
+
+    reconnect(symbol) {
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            setTimeout(() => this.connect(symbol), 5000);
+        } else {
+            showError('Não foi possível reconectar ao servidor');
+        }
+    }
+}
+
+// Instâncias globais
+const rateLimiter = new ApiRateLimiter(config.MAX_REQUESTS_PER_MINUTE, config.REQUEST_WINDOW_MS);
+const wsManager = new WebSocketManager();
+let priceChart = null;
+
+function showLoading(show = true) {
+    document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+}
+
+function showError(message) {
+    const errorElement = document.getElementById('error-message');
+    errorElement.textContent = message;
+    errorElement.style.display = 'block';
+    setTimeout(() => {
+        errorElement.style.display = 'none';
+    }, 5000);
+}
+
+function updateConnectionStatus(status) {
+    document.getElementById('connection-status').textContent = status;
+}
+
+// Funções de análise técnica
+function calculateRSI(prices, periods = 14) {
+    let gains = 0;
+    let losses = 0;
+
+    for (let i = 1; i < periods + 1; i++) {
+        const difference = prices[i] - prices[i - 1];
+        if (difference >= 0) {
+            gains += difference;
+        } else {
+            losses -= difference;
+        }
+    }
+
+    const avgGain = gains / periods;
+    const avgLoss = losses / periods;
+    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    return 100 - (100 / (1 + rs));
+}
+
+function calculateEMA(prices, periods) {
+    const multiplier = 2 / (periods + 1);
+    let ema = prices.slice(0, periods).reduce((a, b) => a + b) / periods;
+
+    for (let i = periods; i < prices.length; i++) {
+        ema = (prices[i] - ema) * multiplier + ema;
+    }
+
+    return ema;
+}
+
+async function fetchMarketData(symbol, interval) {
+    try {
+        const response = await new ApiClient().request(
+            async () => await axios.get(`${config.REST_ENDPOINT}/api/v3/klines`, {
+                params: {
+                    symbol: symbol,
+                    interval: interval,
+                    limit: 100
+                }
+            })
+        );
+        return response.data;
+    } catch (error) {
+        throw new Error(`Erro ao buscar dados do mercado: ${error.message}`);
+    }
+}
+
+async function fetchTradingPairs() {
+    try {
+        const response = await new ApiClient().request(
+            async () => await axios.get(`${config.REST_ENDPOINT}/api/v3/exchangeInfo`)
+        );
+        const pairs = response.data.symbols
+            .filter(symbol => symbol.status === 'TRADING' && symbol.quoteAsset === 'USDT')
+            .map(symbol => ({
+                symbol: symbol.symbol,
+                baseAsset: symbol.baseAsset,
+                quoteAsset: symbol.quoteAsset
+            }))
+            .sort((a, b) => a.baseAsset.localeCompare(b.baseAsset));
+        
+        return pairs;
+    } catch (error) {
+        throw new Error(`Erro ao buscar pares de trading: ${error.message}`);
+    }
+}
+
+async function populatePairSelect() {
+    const pairSelect = document.getElementById('pair-select');
+    pairSelect.innerHTML = '<option value="">Carregando pares...</option>';
+    
+    try {
+        const pairs = await fetchTradingPairs();
+        pairSelect.innerHTML = pairs.map(pair => 
+            `<option value="${pair.symbol}">${pair.baseAsset}/${pair.quoteAsset}</option>`
+        ).join('');
+    } catch (error) {
+        showError(error.message);
+        pairSelect.innerHTML = '<option value="">Erro ao carregar pares</option>';
+    }
+}
+
+function initializeChart() {
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    
+    if (priceChart) {
+        priceChart.destroy();
+    }
+
+    priceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Preço',
+                data: [],
+                borderColor: '#2962ff',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: {
+                    display: true
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false
+                }
+            }
+        }
+    });
+}
+
+function updateChart(prices, dates) {
+    if (priceChart) {
+        priceChart.data.labels = dates;
+        priceChart.data.datasets[0].data = prices;
+        priceChart.update();
+    }
+}
+
+async function analyzeMarket() {
+    showLoading(true);
+    const symbol = document.getElementById('pair-select').value;
+    const interval = document.getElementById('timeframe-select').value;
+
+    try {
+        const klines = await fetchMarketData(symbol, interval);
+        const prices = klines.map(k => parseFloat(k[4]));
+        const dates = klines.map(k => new Date(k[0]).toLocaleDateString());
+
+        // Calcular indicadores
+        const rsi = calculateRSI(prices);
+        const ema9 = calculateEMA(prices, 9);
+        const ema21 = calculateEMA(prices, 21);
+
+        // Atualizar gráfico
+        updateChart(prices, dates);
+
+        // Calcular força do sinal
+        const signalStrength = calculateSignalStrength(rsi, ema9, ema21, prices);
+
+        // Atualizar UI
+        updateSignalUI(signalStrength, rsi);
+
+        // Iniciar WebSocket para atualizações em tempo real
+        wsManager.connect(symbol);
+
+        // Verificar se precisa enviar notificação
+        checkAndNotify(signalStrength);
+
+    } catch (error) {
+        showError(error.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+function calculateSignalStrength(rsi, ema9, ema21, prices) {
+    let strength = 0;
+
+    // RSI Analysis
+    if (rsi < 30) strength += 25;
+    if (rsi > 70) strength -= 25;
+
+    // EMA Cross Analysis
+    if (ema9 > ema21) strength += 15;
+    if (ema9 < ema21) strength -= 15;
+
+    // Tendência de preço
+    const priceChange = ((prices[prices.length - 1] - prices[0]) / prices[0]) * 100;
+    if (priceChange > 0) strength += 10;
+    if (priceChange < 0) strength -= 10;
+
+    return strength;
+}
+
+function updateSignalUI(strength, rsi) {
+    const signalElement = document.getElementById('signal-strength');
+    const rsiElement = document.getElementById('rsi-value');
+    const trendElement = document.getElementById('trend-value');
+    
+    rsiElement.textContent = rsi.toFixed(2);
+
+    let signalText = '';
+    let signalClass = '';
+    
+    if (strength >= 30) {
+        signalText = 'COMPRA FORTE';
+        signalClass = 'buy';
+    } else if (strength <= -30) {
+        signalText = 'VENDA FORTE';
+        signalClass = 'sell';
+    } else {
+        signalText = 'NEUTRO';
+        signalClass = 'neutral';
+    }
+
+    signalElement.className = 'signal-strength ' + signalClass;
+    signalElement.textContent = signalText;
+    
+    trendElement.textContent = strength > 0 ? '↗️ Alta' : strength < 0 ? '↘️ Baixa' : '↔️ Lateral';
+}
+
+function updateRealTimePrice(data) {
+    const price = parseFloat(data.c).toFixed(2);
+    document.getElementById('volume-value').textContent = 
+        `$${(parseFloat(data.v) * parseFloat(data.c)).toLocaleString()}`;
+}
+
+async function checkAndNotify(signalStrength) {
+    if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+            if (Math.abs(signalStrength) >= 40) {
+                const action = signalStrength > 0 ? 'COMPRA' : 'VENDA';
+                new Notification(`Sinal Forte de ${action}`, {
+                    body: `Foi detectado um sinal forte de ${action.toLowerCase()} com força de ${Math.abs(signalStrength)}%`,
+                    icon: '/icons/icon-192.png'
+                });
+            }
+        } else if (Notification.permission !== 'denied') {
+            await Notification.requestPermission();
+        }
+    }
+}
+
+// Event Listeners
+document.getElementById('analyze-btn').addEventListener('click', analyzeMarket);
+
+// Theme toggle functionality
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+}
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', async () => {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    
+    initializeChart();
+    await populatePairSelect();
+    if (document.getElementById('pair-select').value) {
+        analyzeMarket();
+    }
+});
+
+// cleanup for WebSocket
+window.addEventListener('beforeunload', () => {
+    if (wsManager.ws) {
+        wsManager.ws.close();
+    }
+});
+
+// Service Worker para PWA
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+        .then(registration => console.log('ServiceWorker registered'))
+        .catch(error => console.error('ServiceWorker error:', error));
+}
+</script>
+
+</body></html>
